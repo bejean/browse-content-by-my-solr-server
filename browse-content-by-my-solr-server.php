@@ -154,7 +154,22 @@ class mssbc_BrowseWidget extends WP_Widget {
     	if (get_option('s4w_facet_on_tags', '1')=='1') $wp_attributes[] = "wp_tags";
     	if (get_option('s4w_facet_on_author', '1')=='1') $wp_attributes[] = "wp_author";
 //    	if (get_option('s4w_facet_on_type', '1')=='1') $wp_attributes[] = "wp_type";
-	   	$wp_customfields = get_option('s4w_index_custom_fields', '');
+	   	
+	   	
+	   	$plugin_s4w_settings = get_option('plugin_s4w_settings');
+	   	$s4w_solr_host = $plugin_s4w_settings['s4w_solr_host'];
+	   	$s4w_solr_port = $plugin_s4w_settings['s4w_solr_port'];
+	   	$s4w_solr_path = $plugin_s4w_settings['s4w_solr_path'];
+	   	
+	   	if (!$s4w_solr_host && !$s4w_solr_port && !$s4w_solr_path) {
+	   		$wp_customfields = get_option('s4w_index_custom_fields', '');
+	   	}
+	   	else {
+	   		$wp_customfields = $plugin_s4w_settings['s4w_index_custom_fields'];
+	   	}
+	   	
+	   	
+	   	
     	?>
             <p>
                 <label for="<?php echo $this->get_field_id('title'); ?>"><?php _e('Title:'); ?></label>

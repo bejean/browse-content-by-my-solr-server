@@ -1,10 +1,18 @@
 <?php
 function mssbc_get_solr($ping = FALSE) {
 	# get the connection options
-	$host = get_option('s4w_solr_host');
-	$port = get_option('s4w_solr_port');
-	$path = get_option('s4w_solr_path');
+	
+	$plugin_s4w_settings = get_option('plugin_s4w_settings');
+	$host = $plugin_s4w_settings['s4w_solr_host'];
+	$port = $plugin_s4w_settings['s4w_solr_port'];
+	$path = $plugin_s4w_settings['s4w_solr_path'];
 
+	if (!$host && !$port && !$path) {
+		$host = get_option('s4w_solr_host');
+		$port = get_option('s4w_solr_port');
+		$path = get_option('s4w_solr_path');
+	}
+	
 	# double check everything has been set
 	if ( ! ($host and $port and $path) ) {
 		return NULL;
