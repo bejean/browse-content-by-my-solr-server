@@ -20,11 +20,11 @@ if ($results) {
 				echo '<li class="mssbc_browse_field_list_item">';
 				if ($this->isSelected($aFilters['filters'], $facetfield, $facetval)) {
 					echo "<input type='checkbox' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval . "\");' checked>";
-					echo "<a href='javascript:void(0)' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval . "\");'>" . $values . " (" . $facetcnt . ") </a>";
+					echo "&nbsp;<a href='javascript:void(0)' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval . "\");'>" . $values . " (" . $facetcnt . ") </a>";
 				}
 				else {
 					echo "<input type='checkbox' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval . "\");'>";
-					echo "<a href='javascript:void(0)' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval . "\");'>" . $values . " (" . $facetcnt . ") </a>";
+					echo "&nbsp;<a href='javascript:void(0)' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval . "\");'>" . $values . " (" . $facetcnt . ") </a>";
 				}
 				echo '</li>';
 			}
