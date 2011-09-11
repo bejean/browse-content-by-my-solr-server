@@ -71,6 +71,7 @@ class mssbc_BrowseWidget extends WP_Widget {
 //        $exclude_post = $instance['exclude_post'];
 //        $exclude_page = $instance['exclude_page'];
         $attribute_list = $instance['attribute_list'];
+        $template = $instance['template'];
         $facet_fields = split(',', $attribute_list);
         for ($i=0;$i<count($facet_fields); $i++) {
         	$facet_fields[$i] = trim($facet_fields[$i]);
@@ -118,6 +119,7 @@ class mssbc_BrowseWidget extends WP_Widget {
 ?>
 		<form action="<?php echo get_bloginfo('wpurl') . "/"; ?>" method="get" id="mssbc_browse" name="mssbc_browse">
 		<input id="mssbc_browse_filter" name="mssbc_browse_filter" type="hidden" value='<?php echo $filters_json; ?>' />
+		<input id="mssbc_browse_template" name="mssbc_browse_template" type="hidden" value='<?php echo $template; ?>' />
 		</form>
 <?php      
         echo $after_widget;
@@ -128,11 +130,12 @@ class mssbc_BrowseWidget extends WP_Widget {
         $new_instance = wp_parse_args( (array) $new_instance, array( 'title' => 'Browse content by attribute', 'attribute_list' => '') );
         $instance['title'] = strip_tags($new_instance['title']);
         $instance['attribute_list'] = strip_tags($new_instance['attribute_list']);
+        $instance['template'] = strip_tags($new_instance['template']);
 //        $instance['exclude_post'] =$new_instance['exclude_post'];        
 //        $instance['exclude_page'] =$new_instance['exclude_page'];        
 //        if ($instance['exclude_post']=='1' && $instance['exclude_page']=='1') {
 //			$instance['exclude_post'] = '';
-//		}      
+//		  }      
 		return $instance;
     }
 
@@ -141,7 +144,9 @@ class mssbc_BrowseWidget extends WP_Widget {
         $instance = wp_parse_args( (array) $instance, $default );
         $title = strip_tags($instance['title']);
         $attribute_list = strip_tags($instance['attribute_list']);
-//        $exclude_post = strip_tags($instance['exclude_post']);
+        $title = strip_tags($instance['title']);
+        $template = strip_tags($instance['template']);
+        if ($template=='') $template = 'search.php';
 //        $exclude_page = strip_tags($instance['exclude_page']);
 //        
 //        if ($exclude_post=='1' && $exclude_page=='1') {
@@ -155,7 +160,6 @@ class mssbc_BrowseWidget extends WP_Widget {
     	if (get_option('s4w_facet_on_author', '1')=='1') $wp_attributes[] = "wp_author";
 //    	if (get_option('s4w_facet_on_type', '1')=='1') $wp_attributes[] = "wp_type";
 	   	
-	   	
 	   	$plugin_s4w_settings = get_option('plugin_s4w_settings');
 	   	$s4w_solr_host = $plugin_s4w_settings['s4w_solr_host'];
 	   	$s4w_solr_port = $plugin_s4w_settings['s4w_solr_port'];
@@ -167,47 +171,50 @@ class mssbc_BrowseWidget extends WP_Widget {
 	   	else {
 	   		$wp_customfields = $plugin_s4w_settings['s4w_index_custom_fields'];
 	   	}
-	   	
-	   	
-	   	
     	?>
             <p>
                 <label for="<?php echo $this->get_field_id('title'); ?>"><?php _e('Title:'); ?></label>
                 <input class="widefat" id="<?php echo $this->get_field_id('title'); ?>" name="<?php echo $this->get_field_name('title'); ?>" type="text" value="<?php echo esc_attr($title); ?>" />
             </p>
 <!-- 
+            <p></p>
             <p>
                 <label for="<?php echo $this->get_field_id('exclude_page'); ?>"><?php _e('Exclude:'); ?></label><br/>
                 <input type='checkbox' id="<?php echo $this->get_field_id('exclude_page'); ?>" name="<?php echo $this->get_field_name('exclude_page'); ?>" value="1" <?php echo ($exclude_page=='1') ? " checked" : ""; ?> /> <?php _e('exclude pages'); ?><br/>
                 <input type='checkbox' id="<?php echo $this->get_field_id('exclude_post'); ?>" name="<?php echo $this->get_field_name('exclude_post'); ?>" value="1" <?php echo ($exclude_post=='1') ? " checked" : ""; ?> /> <?php _e('exclude posts'); ?>
             </p>
 -->
+            <p></p>
             <p>
-                <label for="<?php echo $this->get_field_id('attribute_list'); ?>"><?php _e('Ordered comma separated attribute list:'); ?></label>
+                <label for="<?php echo $this->get_field_id('attribute_list'); ?>"><?php _e('Ordered comma separated<br />attribute list:'); ?></label>
                 <input class="widefat" id="<?php echo $this->get_field_id('attribute_list'); ?>" name="<?php echo $this->get_field_name('attribute_list'); ?>" type="text" value="<?php echo esc_attr($attribute_list); ?>" />
             </p>
             <p>
                 According to your <strong>Solr for Wordpress</strong> plugin settings ("Solr Options"), available attributes mnemonics are : 
             </p>
-            <ul>
-<?php
+            <ul style='list-style-type:square; list-style-position:inside; margin-left:15px'>
+        <?php
 		for ($i=0;$i<count($wp_attributes); $i++) {
         	echo "<li>$wp_attributes[$i]</li>";
 		}
     	for ($i=0;$i<count($wp_customfields); $i++) {
         	echo "<li>$wp_customfields[$i]</li>";
 		}
-?>
+		?>
 			</ul>
-<?php
+            <p></p>
+            <p>
+                <label for="<?php echo $this->get_field_id('template'); ?>"><?php _e('Template:'); ?></label>
+                <input class="widefat" id="<?php echo $this->get_field_id('template'); ?>" name="<?php echo $this->get_field_name('template'); ?>" type="text" value="<?php echo esc_attr($template); ?>" />
+            </p>
+			<?php
     }
 }
 
 
-function mssbc_options_init() {
-}
-
-add_action( 'admin_init', 'mssbc_options_init');
+// function mssbc_options_init() {
+// }
+// add_action( 'admin_init', 'mssbc_options_init');
 add_action( 'widgets_init', 'mssbc_browse_widget');
 
 function mssbc_clauses( $clauses, $wp_query ) {
@@ -230,6 +237,7 @@ function mssbc_clauses( $clauses, $wp_query ) {
 			$first = true;
 			$wp_where = '';
 			for ($i=0; $i<count($filters); $i++) {
+				$meta = "meta" . $i;
 				if ($filters[$i]['facetfield']!='categories' && $filters[$i]['facetfield']!='tags' && $filters[$i]['facetfield']!='author' && $filters[$i]['facetfield']!='type') {
 					if ($first) {
 						$clauses['where'] .= " AND (";
@@ -239,7 +247,6 @@ function mssbc_clauses( $clauses, $wp_query ) {
 						$clauses['join'] .= " ";
 					}
 					$first=false;
-					$meta = "meta" . $i;
 					$clauses['join'] .= "JOIN $wpdb->postmeta $meta ON ($wpdb->posts.ID = $meta.post_id)";
 					$clauses['where'] .= "($meta.meta_key = '" . preg_replace('/_str$/i', '', $filters[$i]['facetfield']) . "' AND $meta.meta_value = '" . $filters[$i]['facetval'] . "')";
 				}
@@ -267,25 +274,25 @@ function mssbc_clauses( $clauses, $wp_query ) {
 //					}
 					
 					if ($filters[$i]['facetfield']=='author') {
-						$clauses['join'] .= "JOIN $wpdb->users ON ($wpdb->posts.post_author = $wpdb->users.ID)";
-						$clauses['where'] .= "($wpdb->users.user_login = '" . $filters[$i]['facetval'] . "')";		
+						$clauses['join'] .= "JOIN $wpdb->users $meta ON ($wpdb->posts.post_author = $meta.ID)";
+						$clauses['where'] .= "($meta.user_login = '" . $filters[$i]['facetval'] . "')";		
 					}
 					
 					if ($filters[$i]['facetfield']=='tags') {
 						$in_select = "SELECT $wpdb->term_taxonomy.term_taxonomy_id FROM $wpdb->term_taxonomy JOIN $wpdb->terms ON ($wpdb->term_taxonomy.term_id = $wpdb->terms.term_id) WHERE $wpdb->term_taxonomy.taxonomy = 'post_tag' AND $wpdb->terms.name = '" . $filters[$i]['facetval'] . "'";
-						$clauses['join'] .= "JOIN $wpdb->term_relationships ON ($wpdb->posts.ID = $wpdb->term_relationships.object_id)";
-						$clauses['where'] .= "($wpdb->term_relationships.term_taxonomy_id IN (" . $in_select . "))";		
+						$clauses['join'] .= " JOIN $wpdb->term_relationships $meta ON ($wpdb->posts.ID = $meta.object_id)";
+						$clauses['where'] .= "($meta.term_taxonomy_id IN (" . $in_select . "))";		
 					}
 					
 					if ($filters[$i]['facetfield']=='categories') {
 						$aValues = explode ('^^', $filters[$i]['facetval']);
 						$values = "";
-						for ($i=0;$i<count($aValues);$i++) {
-							if (trim($aValues[$i])!='') $values = $aValues[$i];
+						for ($j=0;$j<count($aValues);$j++) {
+							if (trim($aValues[$j])!='') $values = $aValues[$j];
 						}
 						$in_select = "SELECT $wpdb->term_taxonomy.term_taxonomy_id FROM $wpdb->term_taxonomy JOIN $wpdb->terms ON ($wpdb->term_taxonomy.term_id = $wpdb->terms.term_id) WHERE $wpdb->term_taxonomy.taxonomy = 'category' AND $wpdb->terms.name = '" . $values . "'";
-						$clauses['join'] .= "JOIN $wpdb->term_relationships ON ($wpdb->posts.ID = $wpdb->term_relationships.object_id)";
-						$clauses['where'] .= "($wpdb->term_relationships.term_taxonomy_id IN (" . $in_select . "))";		
+						$clauses['join'] .= "JOIN $wpdb->term_relationships $meta ON ($wpdb->posts.ID = $meta.object_id)";
+						$clauses['where'] .= "($meta.term_taxonomy_id IN (" . $in_select . "))";		
 					}
 				}
 			}
@@ -297,9 +304,21 @@ function mssbc_clauses( $clauses, $wp_query ) {
 }
 add_filter( 'posts_clauses', 'mssbc_clauses');
 
+function mssbc_get_template($template){
+	$new_template = get_query_var( 'mssbc_browse_template' );
+	if (!empty($new_template) && $new_template != '') {
+		$new_template = preg_replace('/[.]php$/i', '', $new_template);
+		return get_query_template($new_template);
+	}
+	return $template;
+}
+add_filter('home_template','mssbc_get_template');
+add_filter('page_template','mssbc_get_template');
+
 
 function mssbc_query_vars($aVars) {
     $aVars[] = "mssbc_browse_filter";
+    $aVars[] = "mssbc_browse_template";
     return $aVars;
 }
 add_filter('query_vars', 'mssbc_query_vars');
@@ -368,4 +387,5 @@ function mssbc_load_json_parser(){
 	wp_enqueue_script('json2');
 }
 add_action('wp_print_scripts','mssbc_load_json_parser');
+
 
