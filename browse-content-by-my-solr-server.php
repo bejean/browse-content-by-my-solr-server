@@ -4,12 +4,12 @@ Plugin Name: Browse Content by My Solr Server
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link: 
 Description: Browse content by custom fields or other attributes
-Version: 1.0.0
-Author: Dominiue Bejean
-Author URI: http://www.eolya.fr
+Version: 1.1.0
+Author: My Solr Server
+Author URI: http://www.mysolrserver.com
 */
 /*  
-    Copyright (c) 2009 Matt Weber
+    Copyright (c) 2011 My Solr Server
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
