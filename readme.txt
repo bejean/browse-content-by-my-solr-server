@@ -14,6 +14,8 @@ A WordPress widget that browses content by standard WordPress attributes (catego
 
 `Browse Content by My Solr Server` allows to navigate through WordPress content by standard WordPress attributes (categories, tags and authors) and custom fields.
 
+You can see a demo at http://www.eolya.fr/blog/ 
+
 == Installation ==
 
 = Prerequisite = 
@@ -34,7 +36,7 @@ Index your blog content into Solr (see Solr hosting provider here : http://www.m
 2. Provide the standard WordPress attributes (categories, tags and authors) and custom fields to be used in the widget
 3. Select the template file from you theme to be used to show posts list. By default, the `search.php` template is used. You can chose to create a specific template. For exemple, with the default Wordpress themes, you can copy search.php to browse.php and remove the line that display the message "Search Results for:".
 
-= Customization of the posts list =
+= Customize the posts list =
 
 As explained just before, you can create a dedicated template file in your theme based for example on search.php. This template is in charge to implement the WordPress loop.
 
@@ -44,7 +46,7 @@ As explained just before, you can create a dedicated template file in your theme
 ...
 <?php endwhile; ?>
 
-= Custimized the widget display =
+= Customize the widget display =
 
 The widget uses the template files `template/mssbc_default.php` and `template/mssbc_default.css`.
 
