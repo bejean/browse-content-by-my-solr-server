@@ -59,23 +59,38 @@ function mssbc_query($aFilters, $facet_fields, $exclude_post, $exclude_page) {
 
 	if ($exclude_post=='1') $fq = 'type:"page"';
 	if ($exclude_page=='1') $fq = 'type:"post"';
+	
+	$fq=array();
 	for ($i=0; $i<count($aFilters); $i++) {
-		$fq .= '+' . $aFilters[$i]['facetfield'] . ':"' . $aFilters[$i]['facetval'] . '"';
+		//$fq .= '+' . $aFilters[$i]['facetfield'] . ':"' . $aFilters[$i]['facetval'] . '"';
+		$fq[] = $aFilters[$i]['facetfield'] . ':"' . $aFilters[$i]['facetval'] . '"';
 	}
 
 	if ( $solr ) {
 		$params = array();
-		//$params['defType'] = 'dismax';
+		
+		$bUseDismax = true;
+		if ($bUseDismax) {
+			$params['defType'] = 'dismax';
+			$params['qf'] = 'content';
+			$query="";
+			$params['q.alt'] = '*:*';
+		}
+		else {
+			$query="*:*";
+		}
+		
 		$params['fl'] = '*,score';
 		$params['fq'] = $fq;
 		$params['facet'] = 'true';
 		$params['facet.field'] = $facet_fields;
 		$params['facet.mincount'] = '1';
-		$response = $solr->search( "*:*", 0, 10, $params);
+		$response = $solr->search( $query, 0, 10, $params);
 		if ( ! $response->getHttpStatus() == 200 ) {
 			$response = NULL;
 		}
 	}
+	//echo $response->getRawResponse();
 	return $response;
 }
 ?>
