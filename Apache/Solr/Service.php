@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright (c) 2007-2009, Conduit Internet Technologies, Inc.
+ * Copyright (c) 2007-2011, Servigistics, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -11,7 +11,7 @@
  *  - Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- *  - Neither the name of Conduit Internet Technologies, Inc. nor the names of
+ *  - Neither the name of Servigistics, Inc. nor the names of
  *    its contributors may be used to endorse or promote products derived from
  *    this software without specific prior written permission.
  *
@@ -27,8 +27,9 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @copyright Copyright 2007-2009 Conduit Internet Technologies, Inc. (http://conduit-it.com)
- * @license New BSD (http://solr-php-client.googlecode.com/svn/trunk/COPYING)
+ * @copyright Copyright 2007-2011 Servigistics, Inc. (http://servigistics.com)
+ * @license http://solr-php-client.googlecode.com/svn/trunk/COPYING New BSD
+ * @version $Id: Service.php 59 2011-02-08 20:38:59Z donovan.jimenez $
  *
  * @package Apache
  * @subpackage Solr
@@ -37,8 +38,14 @@
 
 // See Issue #1 (http://code.google.com/p/solr-php-client/issues/detail?id=1)
 // Doesn't follow typical include path conventions, but is more convenient for users
+require_once(dirname(__FILE__) . '/Exception.php');
+require_once(dirname(__FILE__) . '/HttpTransportException.php');
+require_once(dirname(__FILE__) . '/InvalidArgumentException.php');
+
 require_once(dirname(__FILE__) . '/Document.php');
 require_once(dirname(__FILE__) . '/Response.php');
+
+require_once(dirname(__FILE__) . '/HttpTransport/Interface.php');
 
 /**
  * Starting point for the Solr API. Represents a Solr server resource and has
@@ -79,14 +86,17 @@ require_once(dirname(__FILE__) . '/Response.php');
 class Apache_Solr_Service
 {
 	/**
-	 * Response version we support
+	 * SVN Revision meta data for this class
 	 */
-	const SOLR_VERSION = '1.2';
+	const SVN_REVISION = '$Revision: 59 $';
 
 	/**
-	 * Response writer we support
-	 *
-	 * @todo Solr 1.3 release may change this to SerializedPHP or PHP implementation
+	 * SVN ID meta data for this class
+	 */
+	const SVN_ID = '$Id: Service.php 59 2011-02-08 20:38:59Z donovan.jimenez $';
+
+	/**
+	 * Response writer we'll request - JSON. See http://code.google.com/p/solr-php-client/issues/detail?id=6#c1 for reasoning
 	 */
 	const SOLR_WRITER = 'json';
 
@@ -97,12 +107,19 @@ class Apache_Solr_Service
 	const NAMED_LIST_MAP = 'map';
 
 	/**
+	 * Search HTTP Methods
+	 */
+	const METHOD_GET = 'GET';
+	const METHOD_POST = 'POST';
+
+	/**
 	 * Servlet mappings
 	 */
 	const PING_SERVLET = 'admin/ping';
 	const UPDATE_SERVLET = 'update';
 	const SEARCH_SERVLET = 'select';
 	const THREADS_SERVLET = 'admin/threads';
+	const EXTRACT_SERVLET = 'update/extract';
 
 	/**
 	 * Server identification strings
@@ -141,14 +158,14 @@ class Apache_Solr_Service
 	 *
 	 * @var string
 	 */
-	protected $_queryDelimiter = '?', $_queryStringDelimiter = '&';
+	protected $_queryDelimiter = '?', $_queryStringDelimiter = '&', $_queryBracketsEscaped = true;
 
 	/**
 	 * Constructed servlet full path URLs
 	 *
 	 * @var string
 	 */
-	protected $_updateUrl, $_searchUrl, $_threadsUrl;
+	protected $_pingUrl, $_updateUrl, $_searchUrl, $_threadsUrl;
 
 	/**
 	 * Keep track of whether our URLs have been constructed
@@ -158,11 +175,11 @@ class Apache_Solr_Service
 	protected $_urlsInited = false;
 
 	/**
-	 * Stream context for posting
+	 * HTTP Transport implementation (pluggable)
 	 *
-	 * @var resource
+	 * @var Apache_Solr_HttpTransport_Interface
 	 */
-	protected $_postContext;
+	protected $_httpTransport = false;
 
 	/**
 	 * Escape a value for special query characters such as ':', '(', ')', '*', '?', etc.
@@ -213,8 +230,9 @@ class Apache_Solr_Service
 	 * @param string $host
 	 * @param string $port
 	 * @param string $path
+	 * @param Apache_Solr_HttpTransport_Interface $httpTransport
 	 */
-	public function __construct($host = 'localhost', $port = 8180, $path = '/solr/')
+	public function __construct($host = 'localhost', $port = 8180, $path = '/solr/', $httpTransport = false)
 	{
 		$this->setHost($host);
 		$this->setPort($port);
@@ -222,15 +240,13 @@ class Apache_Solr_Service
 
 		$this->_initUrls();
 
-		//set up the stream context for posting with file_get_contents
-		$contextOpts = array(
-			'http' => array(
-				'method' => 'POST',
-				'header' => "Content-Type: text/xml; charset=UTF-8\r\n" //php.net example showed \r\n at the end
-			)
-		);
+		if ($httpTransport)
+		{
+			$this->setHttpTransport($httpTransport);
+		}
 
-		$this->_postContext = stream_context_create($contextOpts);
+		// check that our php version is >= 5.1.3 so we can correct for http_build_query behavior later
+		$this->_queryBracketsEscaped = version_compare(phpversion(), '5.1.3', '>=');
 	}
 
 	/**
@@ -267,11 +283,38 @@ class Apache_Solr_Service
 	protected function _initUrls()
 	{
 		//Initialize our full servlet URLs now that we have server information
-		$this->_updateUrl = $this->_constructUrl(self::UPDATE_SERVLET, array('wt' => self::SOLR_WRITER ));
+		$this->_extractUrl = $this->_constructUrl(self::EXTRACT_SERVLET);
+		$this->_pingUrl = $this->_constructUrl(self::PING_SERVLET);
 		$this->_searchUrl = $this->_constructUrl(self::SEARCH_SERVLET);
 		$this->_threadsUrl = $this->_constructUrl(self::THREADS_SERVLET, array('wt' => self::SOLR_WRITER ));
+		$this->_updateUrl = $this->_constructUrl(self::UPDATE_SERVLET, array('wt' => self::SOLR_WRITER ));
 
 		$this->_urlsInited = true;
+	}
+
+	protected function _generateQueryString($params)
+	{
+		// use http_build_query to encode our arguments because its faster
+		// than urlencoding all the parts ourselves in a loop
+		//
+		// because http_build_query treats arrays differently than we want to, correct the query
+		// string by changing foo[#]=bar (# being an actual number) parameter strings to just
+		// multiple foo=bar strings. This regex should always work since '=' will be urlencoded
+		// anywhere else the regex isn't expecting it
+		//
+		// NOTE: before php 5.1.3 brackets were not url encoded by http_build query - we've checked
+		// the php version in the constructor and put the results in the instance variable. Also, before
+		// 5.1.2 the arg_separator parameter was not available, so don't use it
+		if ($this->_queryBracketsEscaped)
+		{
+			$queryString = http_build_query($params, null, $this->_queryStringDelimiter);
+			return preg_replace('/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=', $queryString);
+		}
+		else
+		{
+			$queryString = http_build_query($params);
+			return preg_replace('/\\[(?:[0-9]|[1-9][0-9]+)\\]=/', '=', $queryString);
+		}
 	}
 
 	/**
@@ -281,20 +324,21 @@ class Apache_Solr_Service
 	 * @param float $timeout Read timeout in seconds
 	 * @return Apache_Solr_Response
 	 *
-	 * @todo implement timeout ability
-	 * @throws Exception If a non 200 response status is returned
+	 * @throws Apache_Solr_HttpTransportException If a non 200 response status is returned
 	 */
 	protected function _sendRawGet($url, $timeout = FALSE)
 	{
-		//$http_response_header is set by file_get_contents
-		$response = new Apache_Solr_Response(@file_get_contents($url), $http_response_header, $this->_createDocuments, $this->_collapseSingleValueArrays);
+		$httpTransport = $this->getHttpTransport();
 
-		if ($response->getHttpStatus() != 200)
+		$httpResponse = $httpTransport->performGetRequest($url, $timeout);
+		$solrResponse = new Apache_Solr_Response($httpResponse, $this->_createDocuments, $this->_collapseSingleValueArrays);
+
+		if ($solrResponse->getHttpStatus() != 200)
 		{
-			throw new Exception('"' . $response->getHttpStatus() . '" Status: ' . $response->getHttpStatusMessage(), $response->getHttpStatus());
+			throw new Apache_Solr_HttpTransportException($solrResponse);
 		}
 
-		return $response;
+		return $solrResponse;
 	}
 
 	/**
@@ -306,31 +350,21 @@ class Apache_Solr_Service
 	 * @param string $contentType
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If a non 200 response status is returned
+	 * @throws Apache_Solr_HttpTransportException If a non 200 response status is returned
 	 */
 	protected function _sendRawPost($url, $rawPost, $timeout = FALSE, $contentType = 'text/xml; charset=UTF-8')
 	{
-		//ensure content type is correct
-		stream_context_set_option($this->_postContext, 'http', 'header', 'Content-Type: ' . $contentType);
+		$httpTransport = $this->getHttpTransport();
 
-		//set the read timeout if specified
-		if ($timeout !== FALSE)
+		$httpResponse = $httpTransport->performPostRequest($url, $rawPost, $contentType, $timeout);
+		$solrResponse = new Apache_Solr_Response($httpResponse, $this->_createDocuments, $this->_collapseSingleValueArrays);
+
+		if ($solrResponse->getHttpStatus() != 200)
 		{
-			stream_context_set_option($this->_postContext, 'http', 'timeout', $timeout);
+			throw new Apache_Solr_HttpTransportException($solrResponse);
 		}
 
-		//set the content
-		stream_context_set_option($this->_postContext, 'http', 'content', $rawPost);
-
-		//$http_response_header is set by file_get_contents
-		$response = new Apache_Solr_Response(@file_get_contents($url, false, $this->_postContext), $http_response_header, $this->_createDocuments, $this->_collapseSingleValueArrays);
-
-		if ($response->getHttpStatus() != 200)
-		{
-			throw new Exception('"' . $response->getHttpStatus() . '" Status: ' . $response->getHttpStatusMessage(), $response->getHttpStatus());
-		}
-
-		return $response;
+		return $solrResponse;
 	}
 
 	/**
@@ -347,13 +381,15 @@ class Apache_Solr_Service
 	 * Set the host used. If empty will fallback to constants
 	 *
 	 * @param string $host
+	 *
+	 * @throws Apache_Solr_InvalidArgumentException If the host parameter is empty
 	 */
 	public function setHost($host)
 	{
 		//Use the provided host or use the default
 		if (empty($host))
 		{
-			throw new Exception('Host parameter is empty');
+			throw new Apache_Solr_InvalidArgumentException('Host parameter is empty');
 		}
 		else
 		{
@@ -380,6 +416,8 @@ class Apache_Solr_Service
 	 * Set the port used. If empty will fallback to constants
 	 *
 	 * @param integer $port
+	 *
+	 * @throws Apache_Solr_InvalidArgumentException If the port parameter is empty
 	 */
 	public function setPort($port)
 	{
@@ -388,7 +426,7 @@ class Apache_Solr_Service
 
 		if ($port <= 0)
 		{
-			throw new Exception('Port is not a valid port number');
+			throw new Apache_Solr_InvalidArgumentException('Port is not a valid port number');
 		}
 		else
 		{
@@ -429,10 +467,38 @@ class Apache_Solr_Service
 	}
 
 	/**
+	 * Get the current configured HTTP Transport
+	 *
+	 * @return HttpTransportInterface
+	 */
+	public function getHttpTransport()
+	{
+		// lazy load a default if one has not be set
+		if ($this->_httpTransport === false)
+		{
+			require_once(dirname(__FILE__) . '/HttpTransport/FileGetContents.php');
+
+			$this->_httpTransport = new Apache_Solr_HttpTransport_FileGetContents();
+		}
+
+		return $this->_httpTransport;
+	}
+
+	/**
+	 * Set the HTTP Transport implemenation that will be used for all HTTP requests
+	 *
+	 * @param Apache_Solr_HttpTransport_Interface
+	 */
+	public function setHttpTransport(Apache_Solr_HttpTransport_Interface $httpTransport)
+	{
+		$this->_httpTransport = $httpTransport;
+	}
+
+	/**
 	 * Set the create documents flag. This determines whether {@link Apache_Solr_Response} objects will
 	 * parse the response and create {@link Apache_Solr_Document} instances in place.
 	 *
-	 * @param unknown_type $createDocuments
+	 * @param boolean $createDocuments
 	 */
 	public function setCreateDocuments($createDocuments)
 	{
@@ -470,13 +536,38 @@ class Apache_Solr_Service
 	}
 
 	/**
+	 * Get the current default timeout setting (initially the default_socket_timeout ini setting)
+	 * in seconds
+	 *
+	 * @return float
+	 *
+	 * @deprecated Use the getDefaultTimeout method on the HTTP transport implementation
+	 */
+	public function getDefaultTimeout()
+	{
+		return $this->getHttpTransport()->getDefaultTimeout();
+	}
+
+	/**
+	 * Set the default timeout for all calls that aren't passed a specific timeout
+	 *
+	 * @param float $timeout Timeout value in seconds
+	 *
+	 * @deprecated Use the setDefaultTimeout method on the HTTP transport implementation
+	 */
+	public function setDefaultTimeout($timeout)
+	{
+		$this->getHttpTransport()->setDefaultTimeout($timeout);
+	}
+
+	/**
 	 * Set how NamedLists should be formatted in the response data. This mainly effects
 	 * the facet counts format.
 	 *
 	 * @param string $namedListTreatment
-	 * @throws Exception If invalid option is set
+	 * @throws Apache_Solr_InvalidArgumentException If invalid option is set
 	 */
-	public function setNamedListTreatmet($namedListTreatment)
+	public function setNamedListTreatment($namedListTreatment)
 	{
 		switch ((string) $namedListTreatment)
 		{
@@ -489,7 +580,7 @@ class Apache_Solr_Service
 				break;
 
 			default:
-				throw new Exception('Not a valid named list treatement option');
+				throw new Apache_Solr_InvalidArgumentException('Not a valid named list treatement option');
 		}
 	}
 
@@ -502,7 +593,6 @@ class Apache_Solr_Service
 	{
 		return $this->_namedListTreatment;
 	}
-
 
 	/**
 	 * Set the string used to separate the path form the query string.
@@ -531,108 +621,25 @@ class Apache_Solr_Service
 	 * server is able to be made.
 	 *
 	 * @param float $timeout maximum time to wait for ping in seconds, -1 for unlimited (default is 2)
-	 * @return float Actual time taken to ping the server, FALSE if timeout occurs
+	 * @return float Actual time taken to ping the server, FALSE if timeout or HTTP error status occurs
 	 */
 	public function ping($timeout = 2)
 	{
-		$timeout = (float) $timeout;
-
-		if ($timeout <= 0)
-		{
-			$timeout = -1;
-		}
-
 		$start = microtime(true);
+		
+		$httpTransport = $this->getHttpTransport();
 
-		//to prevent strict errors
-		$errno = 0;
-		$errstr = '';
+		$httpResponse = $httpTransport->performHeadRequest($this->_pingUrl, $timeout);
+		$solrResponse = new Apache_Solr_Response($httpResponse, $this->_createDocuments, $this->_collapseSingleValueArrays);
 
-		//try to connect to the host with timeout
-		$fp = fsockopen($this->_host, $this->_port, $errno, $errstr, $timeout);
-
-		if ($fp)
+		if ($solrResponse->getHttpStatus() == 200)
 		{
-			//If we have a timeout set, then determine the amount of time we have left
-			//in the request and set the stream timeout for the write operation
-			if ($timeout > 0)
-			{
-				//do the calculation
-				$writeTimeout = $timeout - (microtime(true) - $start);
-
-				//check if we're out of time
-				if ($writeTimeout <= 0)
-				{
-					fclose($fp);
-					return false;
-				}
-
-				//convert to microseconds and set the stream timeout
-				$writeTimeoutInMicroseconds = (int) $writeTimeout * 1000000;
-				stream_set_timeout($fp, 0, $writeTimeoutInMicroseconds);
-			}
-
-			$request = 	'HEAD ' . $this->_path . self::PING_SERVLET . ' HTTP/1.1' . "\r\n" .
-						'host: ' . $this->_host . "\r\n" .
-						'Connection: close' . "\r\n" .
-						"\r\n";
-
-			fwrite($fp, $request);
-
-			//check the stream meta data to see if we timed out during the operation
-			$metaData = stream_get_meta_data($fp);
-
-			if (isset($metaData['timeout']) && $metaData['timeout'])
-			{
-				fclose($fp);
-				return false;
-			}
-
-
-			//if we have a timeout set and have made it this far, determine the amount of time
-			//still remaining and set the timeout appropriately before the read operation
-			if ($timeout > 0)
-			{
-				//do the calculation
-				$readTimeout = $timeout - (microtime(true) - $start);
-
-				//check if we've run out of time
-				if ($readTimeout <= 0)
-				{
-					fclose($fp);
-					return false;
-				}
-
-				//convert to microseconds and set the stream timeout
-				$readTimeoutInMicroseconds = $readTimeout * 1000000;
-				stream_set_timeout($fp, 0, $readTimeoutInMicroseconds);
-			}
-
-			//at the very least we should get a response header line of
-			//HTTP/1.1 200 OK
-			$response = fread($fp, 15);
-
-			//check the stream meta data to see if we timed out during the operation
-			$metaData = stream_get_meta_data($fp);
-			fclose($fp); //we're done with the connection - ignore the rest
-
-			if (isset($metaData['timeout']) && $metaData['timeout'])
-			{
-				return false;
-			}
-
-			//finally, check the response header line
-			if ($response != 'HTTP/1.1 200 OK')
-			{
-				return false;
-			}
-
-			//we made it, return the approximate ping time
 			return microtime(true) - $start;
 		}
-
-		//we weren't able to make a connection
-		return false;
+		else
+		{
+			return false;
+		}
 	}
 
 	/**
@@ -641,7 +648,7 @@ class Apache_Solr_Service
 	 *
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
 	public function threads()
 	{
@@ -655,7 +662,7 @@ class Apache_Solr_Service
 	 * @param string $rawPost
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
 	public function add($rawPost)
 	{
@@ -669,17 +676,21 @@ class Apache_Solr_Service
 	 * @param boolean $allowDups
 	 * @param boolean $overwritePending
 	 * @param boolean $overwriteCommitted
+	 * @param integer $commitWithin The number of milliseconds that a document must be committed within, see @{link http://wiki.apache.org/solr/UpdateXmlMessages#The_Update_Schema} for details.  If left empty this property will not be set in the request.
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
-	public function addDocument(Apache_Solr_Document $document, $allowDups = false, $overwritePending = true, $overwriteCommitted = true)
+	public function addDocument(Apache_Solr_Document $document, $allowDups = false, $overwritePending = true, $overwriteCommitted = true, $commitWithin = 0)
 	{
 		$dupValue = $allowDups ? 'true' : 'false';
 		$pendingValue = $overwritePending ? 'true' : 'false';
 		$committedValue = $overwriteCommitted ? 'true' : 'false';
-
-		$rawPost = '<add allowDups="' . $dupValue . '" overwritePending="' . $pendingValue . '" overwriteCommitted="' . $committedValue . '">';
+		
+		$commitWithin = (int) $commitWithin;
+		$commitWithinString = $commitWithin > 0 ? " commitWithin=\"{$commitWithin}\"" : '';
+		
+		$rawPost = "<add allowDups=\"{$dupValue}\" overwritePending=\"{$pendingValue}\" overwriteCommitted=\"{$committedValue}\"{$commitWithinString}>";
 		$rawPost .= $this->_documentToXmlFragment($document);
 		$rawPost .= '</add>';
 
@@ -693,17 +704,21 @@ class Apache_Solr_Service
 	 * @param boolean $allowDups
 	 * @param boolean $overwritePending
 	 * @param boolean $overwriteCommitted
+	 * @param integer $commitWithin The number of milliseconds that a document must be committed within, see @{link http://wiki.apache.org/solr/UpdateXmlMessages#The_Update_Schema} for details.  If left empty this property will not be set in the request.
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
-	public function addDocuments($documents, $allowDups = false, $overwritePending = true, $overwriteCommitted = true)
+	public function addDocuments($documents, $allowDups = false, $overwritePending = true, $overwriteCommitted = true, $commitWithin = 0)
 	{
 		$dupValue = $allowDups ? 'true' : 'false';
 		$pendingValue = $overwritePending ? 'true' : 'false';
 		$committedValue = $overwriteCommitted ? 'true' : 'false';
 
-		$rawPost = '<add allowDups="' . $dupValue . '" overwritePending="' . $pendingValue . '" overwriteCommitted="' . $committedValue . '">';
+		$commitWithin = (int) $commitWithin;
+		$commitWithinString = $commitWithin > 0 ? " commitWithin=\"{$commitWithin}\"" : '';
+
+		$rawPost = "<add allowDups=\"{$dupValue}\" overwritePending=\"{$pendingValue}\" overwriteCommitted=\"{$committedValue}\"{$commitWithinString}>";
 
 		foreach ($documents as $document)
 		{
@@ -737,7 +752,6 @@ class Apache_Solr_Service
 		foreach ($document as $key => $value)
 		{
 			$key = htmlspecialchars($key, ENT_QUOTES, 'UTF-8');
-			$key = preg_replace('/\pC/u', '', $key); // remove unicode Control chars.
 			$fieldBoost = $document->getFieldBoost($key);
 
 			if (is_array($value))
@@ -755,8 +769,7 @@ class Apache_Solr_Service
 					}
 
 					$multivalue = htmlspecialchars($multivalue, ENT_NOQUOTES, 'UTF-8');
-					$multivalue = preg_replace('/\pC/u', '', $multivalue); // remove unicode Control chars.
-                    
+
 					$xml .= '>' . $multivalue . '</field>';
 				}
 			}
@@ -770,7 +783,6 @@ class Apache_Solr_Service
 				}
 
 				$value = htmlspecialchars($value, ENT_NOQUOTES, 'UTF-8');
-				$value = preg_replace('/\pC/u', '', $value); // remove unicode Control chars.
 
 				$xml .= '>' . $value . '</field>';
 			}
@@ -778,27 +790,41 @@ class Apache_Solr_Service
 
 		$xml .= '</doc>';
 
-		return $xml;
+		// replace any control characters to avoid Solr XML parser exception
+		return $this->_stripCtrlChars($xml);
+	}
+
+	/**
+	 * Replace control (non-printable) characters from string that are invalid to Solr's XML parser with a space.
+	 *
+	 * @param string $string
+	 * @return string
+	 */
+	protected function _stripCtrlChars($string)
+	{
+		// See:  http://w3.org/International/questions/qa-forms-utf-8.html
+		// Printable utf-8 does not include any of these chars below x7F
+		return preg_replace('@[\x00-\x08\x0B\x0C\x0E-\x1F]@', ' ', $string);
 	}
 
 	/**
 	 * Send a commit command.  Will be synchronous unless both wait parameters are set to false.
 	 *
-	 * @param boolean $optimize Defaults to true
-	 * @param boolean $waitFlush Defaults to true
-	 * @param boolean $waitSearcher Defaults to true
+	 * @param boolean $expungeDeletes Defaults to false, merge segments with deletes away
+	 * @param boolean $waitFlush Defaults to true,  block until index changes are flushed to disk
+	 * @param boolean $waitSearcher Defaults to true, block until a new searcher is opened and registered as the main query searcher, making the changes visible
 	 * @param float $timeout Maximum expected duration (in seconds) of the commit operation on the server (otherwise, will throw a communication exception). Defaults to 1 hour
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
-	public function commit($optimize = true, $waitFlush = true, $waitSearcher = true, $timeout = 3600)
+	public function commit($expungeDeletes = false, $waitFlush = true, $waitSearcher = true, $timeout = 3600)
 	{
-		$optimizeValue = $optimize ? 'true' : 'false';
+		$expungeValue = $expungeDeletes ? 'true' : 'false';
 		$flushValue = $waitFlush ? 'true' : 'false';
 		$searcherValue = $waitSearcher ? 'true' : 'false';
 
-		$rawPost = '<commit optimize="' . $optimizeValue . '" waitFlush="' . $flushValue . '" waitSearcher="' . $searcherValue . '" />';
+		$rawPost = '<commit expungeDeletes="' . $expungeValue . '" waitFlush="' . $flushValue . '" waitSearcher="' . $searcherValue . '" />';
 
 		return $this->_sendRawPost($this->_updateUrl, $rawPost, $timeout);
 	}
@@ -808,13 +834,14 @@ class Apache_Solr_Service
 	 * a complete and well formed "delete" xml document
 	 *
 	 * @param string $rawPost Expected to be utf-8 encoded xml document
+	 * @param float $timeout Maximum expected duration of the delete operation on the server (otherwise, will throw a communication exception)
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
-	public function delete($rawPost)
+	public function delete($rawPost, $timeout = 3600)
 	{
-		return $this->_sendRawPost($this->_updateUrl, $rawPost);
+		return $this->_sendRawPost($this->_updateUrl, $rawPost, $timeout);
 	}
 
 	/**
@@ -823,11 +850,12 @@ class Apache_Solr_Service
 	 * @param string $id Expected to be utf-8 encoded
 	 * @param boolean $fromPending
 	 * @param boolean $fromCommitted
+	 * @param float $timeout Maximum expected duration of the delete operation on the server (otherwise, will throw a communication exception)
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
-	public function deleteById($id, $fromPending = true, $fromCommitted = true)
+	public function deleteById($id, $fromPending = true, $fromCommitted = true, $timeout = 3600)
 	{
 		$pendingValue = $fromPending ? 'true' : 'false';
 		$committedValue = $fromCommitted ? 'true' : 'false';
@@ -837,7 +865,38 @@ class Apache_Solr_Service
 
 		$rawPost = '<delete fromPending="' . $pendingValue . '" fromCommitted="' . $committedValue . '"><id>' . $id . '</id></delete>';
 
-		return $this->delete($rawPost);
+		return $this->delete($rawPost, $timeout);
+	}
+
+	/**
+	 * Create and post a delete document based on multiple document IDs.
+	 *
+	 * @param array $ids Expected to be utf-8 encoded strings
+	 * @param boolean $fromPending
+	 * @param boolean $fromCommitted
+	 * @param float $timeout Maximum expected duration of the delete operation on the server (otherwise, will throw a communication exception)
+	 * @return Apache_Solr_Response
+	 *
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
+	 */
+	public function deleteByMultipleIds($ids, $fromPending = true, $fromCommitted = true, $timeout = 3600)
+	{
+		$pendingValue = $fromPending ? 'true' : 'false';
+		$committedValue = $fromCommitted ? 'true' : 'false';
+
+		$rawPost = '<delete fromPending="' . $pendingValue . '" fromCommitted="' . $committedValue . '">';
+
+		foreach ($ids as $id)
+		{
+			//escape special xml characters
+			$id = htmlspecialchars($id, ENT_NOQUOTES, 'UTF-8');
+
+			$rawPost .= '<id>' . $id . '</id>';
+		}
+
+		$rawPost .= '</delete>';
+
+		return $this->delete($rawPost, $timeout);
 	}
 
 	/**
@@ -846,11 +905,12 @@ class Apache_Solr_Service
 	 * @param string $rawQuery Expected to be utf-8 encoded
 	 * @param boolean $fromPending
 	 * @param boolean $fromCommitted
+	 * @param float $timeout Maximum expected duration of the delete operation on the server (otherwise, will throw a communication exception)
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
-	public function deleteByQuery($rawQuery, $fromPending = true, $fromCommitted = true)
+	public function deleteByQuery($rawQuery, $fromPending = true, $fromCommitted = true, $timeout = 3600)
 	{
 		$pendingValue = $fromPending ? 'true' : 'false';
 		$committedValue = $fromCommitted ? 'true' : 'false';
@@ -860,7 +920,187 @@ class Apache_Solr_Service
 
 		$rawPost = '<delete fromPending="' . $pendingValue . '" fromCommitted="' . $committedValue . '"><query>' . $rawQuery . '</query></delete>';
 
-		return $this->delete($rawPost);
+		return $this->delete($rawPost, $timeout);
+	}
+
+	/**
+	 * Use Solr Cell to extract document contents. See {@link http://wiki.apache.org/solr/ExtractingRequestHandler} for information on how
+	 * to use Solr Cell and what parameters are available.
+	 *
+	 * NOTE: when passing an Apache_Solr_Document instance, field names and boosts will automatically be prepended by "literal." and "boost."
+	 * as appropriate. Any keys from the $params array will NOT be treated this way. Any mappings from the document will overwrite key / value
+	 * pairs in the params array if they have the same name (e.g. you pass a "literal.id" key and value in your $params array but you also
+	 * pass in a document isntance with an "id" field" - the document's value(s) will take precedence).
+	 *
+	 * @param string $file Path to file to extract data from
+	 * @param array $params optional array of key value pairs that will be sent with the post (see Solr Cell documentation)
+	 * @param Apache_Solr_Document $document optional document that will be used to generate post parameters (literal.* and boost.* params)
+	 * @param string $mimetype optional mimetype specification (for the file being extracted)
+	 *
+	 * @return Apache_Solr_Response
+	 *
+	 * @throws Apache_Solr_InvalidArgumentException if $file, $params, or $document are invalid.
+	 */
+	public function extract($file, $params = array(), $document = null, $mimetype = 'application/octet-stream')
+	{
+		// check if $params is an array (allow null for default empty array)
+		if (!is_null($params))
+		{
+			if (!is_array($params))
+			{
+				throw new Apache_Solr_InvalidArgumentException("\$params must be a valid array or null");
+			}
+		}
+		else
+		{
+			$params = array();
+		}
+		
+		// if $file is an http request, defer to extractFromUrl instead
+		if (substr($file, 0, 7) == 'http://' || substr($file, 0, 8) == 'https://')
+		{
+			return $this->extractFromUrl($file, $params, $document, $mimetype);
+		}
+		
+		// read the contents of the file
+		$contents = @file_get_contents($file);
+
+		if ($contents !== false)
+		{
+			// add the resource.name parameter if not specified
+			if (!isset($params['resource.name']))
+			{
+				$params['resource.name'] = basename($file);
+			}
+
+			// delegate the rest to extractFromString
+			return $this->extractFromString($contents, $params, $document, $mimetype);
+		}
+		else
+		{
+			throw new Apache_Solr_InvalidArgumentException("File '{$file}' is empty or could not be read");
+		}
+	}
+	
+	/**
+	 * Use Solr Cell to extract document contents. See {@link http://wiki.apache.org/solr/ExtractingRequestHandler} for information on how
+	 * to use Solr Cell and what parameters are available.
+	 *
+	 * NOTE: when passing an Apache_Solr_Document instance, field names and boosts will automatically be prepended by "literal." and "boost."
+	 * as appropriate. Any keys from the $params array will NOT be treated this way. Any mappings from the document will overwrite key / value
+	 * pairs in the params array if they have the same name (e.g. you pass a "literal.id" key and value in your $params array but you also
+	 * pass in a document isntance with an "id" field" - the document's value(s) will take precedence).
+	 *
+	 * @param string $data Data that will be passed to Solr Cell
+	 * @param array $params optional array of key value pairs that will be sent with the post (see Solr Cell documentation)
+	 * @param Apache_Solr_Document $document optional document that will be used to generate post parameters (literal.* and boost.* params)
+	 * @param string $mimetype optional mimetype specification (for the file being extracted)
+	 *
+	 * @return Apache_Solr_Response
+	 *
+	 * @throws Apache_Solr_InvalidArgumentException if $file, $params, or $document are invalid.
+	 *
+	 * @todo Should be using multipart/form-data to post parameter values, but I could not get my implementation to work. Needs revisisted.
+	 */
+	public function extractFromString($data, $params = array(), $document = null, $mimetype = 'application/octet-stream')
+	{
+		// check if $params is an array (allow null for default empty array)
+		if (!is_null($params))
+		{
+			if (!is_array($params))
+			{
+				throw new Apache_Solr_InvalidArgumentException("\$params must be a valid array or null");
+			}
+		}
+		else
+		{
+			$params = array();
+		}
+
+		// make sure we receive our response in JSON and have proper name list treatment
+		$params['wt'] = self::SOLR_WRITER;
+		$params['json.nl'] = $this->_namedListTreatment;
+
+		// check if $document is an Apache_Solr_Document instance
+		if (!is_null($document) && $document instanceof Apache_Solr_Document)
+		{
+			// iterate document, adding literal.* and boost.* fields to $params as appropriate
+			foreach ($document as $field => $fieldValue)
+			{
+				// check if we need to add a boost.* parameters
+				$fieldBoost = $document->getFieldBoost($field);
+
+				if ($fieldBoost !== false)
+				{
+					$params["boost.{$field}"] = $fieldBoost;
+				}
+
+				// add the literal.* parameter
+				$params["literal.{$field}"] = $fieldValue;
+			}
+		}
+
+		// params will be sent to SOLR in the QUERY STRING
+		$queryString = $this->_generateQueryString($params);
+
+		// the file contents will be sent to SOLR as the POST BODY - we use application/octect-stream as default mimetype
+		return $this->_sendRawPost($this->_extractUrl . $this->_queryDelimiter . $queryString, $data, false, $mimetype);
+	}
+	
+	/**
+	 * Use Solr Cell to extract document contents. See {@link http://wiki.apache.org/solr/ExtractingRequestHandler} for information on how
+	 * to use Solr Cell and what parameters are available.
+	 *
+	 * NOTE: when passing an Apache_Solr_Document instance, field names and boosts will automatically be prepended by "literal." and "boost."
+	 * as appropriate. Any keys from the $params array will NOT be treated this way. Any mappings from the document will overwrite key / value
+	 * pairs in the params array if they have the same name (e.g. you pass a "literal.id" key and value in your $params array but you also
+	 * pass in a document isntance with an "id" field" - the document's value(s) will take precedence).
+	 *
+	 * @param string $url URL
+	 * @param array $params optional array of key value pairs that will be sent with the post (see Solr Cell documentation)
+	 * @param Apache_Solr_Document $document optional document that will be used to generate post parameters (literal.* and boost.* params)
+	 * @param string $mimetype optional mimetype specification (for the file being extracted)
+	 *
+	 * @return Apache_Solr_Response
+	 *
+	 * @throws Apache_Solr_InvalidArgumentException if $url, $params, or $document are invalid.
+	 */
+	public function extractFromUrl($url, $params = array(), $document = null, $mimetype = 'application/octet-stream')
+	{
+		// check if $params is an array (allow null for default empty array)
+		if (!is_null($params))
+		{
+			if (!is_array($params))
+			{
+				throw new Apache_Solr_InvalidArgumentException("\$params must be a valid array or null");
+			}
+		}
+		else
+		{
+			$params = array();
+		}
+
+		$httpTransport = $this->getHttpTransport();
+		
+		// read the contents of the URL using our configured Http Transport and default timeout
+		$httpResponse = $httpTransport->performGetRequest($url);
+		
+		// check that its a 200 response
+		if ($httpResponse->getStatusCode() == 200)
+		{
+			// add the resource.name parameter if not specified
+			if (!isset($params['resource.name']))
+			{
+				$params['resource.name'] = $url;
+			}
+
+			// delegate the rest to extractFromString
+			return $this->extractFromString($httpResponse->getBody(), $params, $document, $mimetype);
+		}
+		else
+		{
+			throw new Apache_Solr_InvalidArgumentException("URL '{$url}' returned non 200 response code");
+		}
 	}
 
 	/**
@@ -872,7 +1112,7 @@ class Apache_Solr_Service
 	 * @param float $timeout Maximum expected duration of the commit operation on the server (otherwise, will throw a communication exception)
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
 	 */
 	public function optimize($waitFlush = true, $waitSearcher = true, $timeout = 3600)
 	{
@@ -891,28 +1131,30 @@ class Apache_Solr_Service
 	 * @param int $offset The starting offset for result documents
 	 * @param int $limit The maximum number of result documents to return
 	 * @param array $params key / value pairs for other query parameters (see Solr documentation), use arrays for parameter keys used more than once (e.g. facet.field)
+	 * @param string $method The HTTP method (Apache_Solr_Service::METHOD_GET or Apache_Solr_Service::METHOD::POST)
 	 * @return Apache_Solr_Response
 	 *
-	 * @throws Exception If an error occurs during the service call
+	 * @throws Apache_Solr_HttpTransportException If an error occurs during the service call
+	 * @throws Apache_Solr_InvalidArgumentException If an invalid HTTP method is used
 	 */
-	public function search($query, $offset = 0, $limit = 10, $params = array())
+	public function search($query, $offset = 0, $limit = 10, $params = array(), $method = self::METHOD_GET)
 	{
-	    $searchurl = $this->_searchUrl;
-	    
-		if (!is_array($params))
+		// ensure params is an array
+		if (!is_null($params))
+		{
+			if (!is_array($params))
+			{
+				// params was specified but was not an array - invalid
+				throw new Apache_Solr_InvalidArgumentException("\$params must be a valid array or null");
+			}
+		}
+		else
 		{
 			$params = array();
 		}
-
+		
 		// construct our full parameters
-		// sending the version is important in case the format changes
-		$params['version'] = self::SOLR_VERSION;
 
-        if ($params['qt'] && substr($params['qt'], 0, 1) === "/") {
-            $searchurl = $this->_constructUrl(substr($params['qt'], 1));
-            unset($params['qt']);
-        }
-        
 		// common parameters in this interface
 		$params['wt'] = self::SOLR_WRITER;
 		$params['json.nl'] = $this->_namedListTreatment;
@@ -921,16 +1163,19 @@ class Apache_Solr_Service
 		$params['start'] = $offset;
 		$params['rows'] = $limit;
 
-		// use http_build_query to encode our arguments because its faster
-		// than urlencoding all the parts ourselves in a loop
-		$queryString = http_build_query($params, null, $this->_queryStringDelimiter);
+		$queryString = $this->_generateQueryString($params);
 
-		// because http_build_query treats arrays differently than we want to, correct the query
-		// string by changing foo[#]=bar (# being an actual number) parameter strings to just
-		// multiple foo=bar strings. This regex should always work since '=' will be urlencoded
-		// anywhere else the regex isn't expecting it
-		$queryString = preg_replace('/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=', $queryString);
-
-		return $this->_sendRawGet($searchurl . $this->_queryDelimiter . $queryString);
+		if ($method == self::METHOD_GET)
+		{
+			return $this->_sendRawGet($this->_searchUrl . $this->_queryDelimiter . $queryString);
+		}
+		else if ($method == self::METHOD_POST)
+		{
+			return $this->_sendRawPost($this->_searchUrl, $queryString, FALSE, 'application/x-www-form-urlencoded; charset=UTF-8');
+		}
+		else
+		{
+			throw new Apache_Solr_InvalidArgumentException("Unsupported method '$method', please use the Apache_Solr_Service::METHOD_* constants");
+		}
 	}
 }

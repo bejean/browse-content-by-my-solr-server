@@ -1,39 +1,42 @@
 <?php
 /**
- * Copyright (c) 2007-2009, Conduit Internet Technologies, Inc. 
- * All rights reserved. 
- * 
- * Redistribution and use in source and binary forms, with or without 
- * modification, are permitted provided that the following conditions are met: 
- * 
- *  - Redistributions of source code must retain the above copyright notice, 
- *    this list of conditions and the following disclaimer. 
- *  - Redistributions in binary form must reproduce the above copyright 
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the distribution. 
- *  - Neither the name of Conduit Internet Technologies, Inc. nor the names of 
- *    its contributors may be used to endorse or promote products derived from 
- *    this software without specific prior written permission. 
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ * Copyright (c) 2007-2011, Servigistics, Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *  - Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *  - Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  - Neither the name of Servigistics, Inc. nor the names of
+ *    its contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * 
- * @copyright Copyright 2007-2009 Conduit Internet Technologies, Inc. (http://conduit-it.com)
- * @license New BSD (http://solr-php-client.googlecode.com/svn/trunk/COPYING)
- * 
+ *
+ * @copyright Copyright 2007-2011 Servigistics, Inc. (http://servigistics.com)
+ * @license http://solr-php-client.googlecode.com/svn/trunk/COPYING New BSD
+ * @version $Id: Response.php 54 2011-02-04 16:29:18Z donovan.jimenez $
+ *
  * @package Apache
  * @subpackage Solr
  * @author Donovan Jimenez <djimenez@conduit-it.com>
  */
+
+require_once(dirname(__FILE__) . '/ParserException.php');
 
 /**
  * Represents a Solr response.  Parses the raw response into a set of stdClass objects
@@ -41,24 +44,25 @@
  *
  * Currently requires json_decode which is bundled with PHP >= 5.2.0, Alternatively can be
  * installed with PECL.  Zend Framework also includes a purely PHP solution.
- *
- * @todo When Solr 1.3 is released, possibly convert to use PHP or Serialized PHP output writer
  */
 class Apache_Solr_Response
 {
 	/**
-	 * Holds the raw response used in construction
-	 *
-	 * @var string
+	 * SVN Revision meta data for this class
 	 */
-	protected $_rawResponse;
+	const SVN_REVISION = '$Revision: 54 $';
 
 	/**
-	 * Parsed values from the passed in http headers
-	 *
-	 * @var string
+	 * SVN ID meta data for this class
 	 */
-	protected $_httpStatus, $_httpStatusMessage, $_type, $_encoding;
+	const SVN_ID = '$Id: Response.php 54 2011-02-04 16:29:18Z donovan.jimenez $';
+
+	/**
+	 * Holds the raw response used in construction
+	 *
+	 * @var Apache_Solr_HttpTransport_Response HTTP response
+	 */
+	protected $_response;
 
 	/**
 	 * Whether the raw response has been parsed
@@ -86,123 +90,16 @@ class Apache_Solr_Response
 	/**
 	 * Constructor. Takes the raw HTTP response body and the exploded HTTP headers
 	 *
-	 * @param string $rawResponse
-	 * @param array $httpHeaders
+	 * @return Apache_Solr_HttpTransport_Response HTTP response
 	 * @param boolean $createDocuments Whether to convert the documents json_decoded as stdClass instances to Apache_Solr_Document instances
 	 * @param boolean $collapseSingleValueArrays Whether to make multivalued fields appear as single values
 	 */
-	public function __construct($rawResponse, $httpHeaders = array(), $createDocuments = true, $collapseSingleValueArrays = true)
+	public function __construct(Apache_Solr_HttpTransport_Response $response, $createDocuments = true, $collapseSingleValueArrays = true)
 	{
-		//Assume 0, 'Communication Error', utf-8, and  text/plain
-		$status = 0;
-		$statusMessage = 'Communication Error';
-		$type = 'text/plain';
-		$encoding = 'UTF-8';
-
-		//iterate through headers for real status, type, and encoding
-		if (is_array($httpHeaders) && count($httpHeaders) > 0)
-		{
-			//look at the first headers for the HTTP status code
-			//and message (errors are usually returned this way)
-			//
-			//HTTP 100 Continue response can also be returned before
-			//the REAL status header, so we need look until we find
-			//the last header starting with HTTP
-			//
-			//the spec: http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.1
-			//
-			//Thanks to Daniel Andersson for pointing out this oversight
-			while (isset($httpHeaders[0]) && substr($httpHeaders[0], 0, 4) == 'HTTP')
-			{
-				$parts = split(' ', substr($httpHeaders[0], 9), 2);
-
-				$status = $parts[0];
-				$statusMessage = trim($parts[1]);
-
-				array_shift($httpHeaders);
-			}
-
-			//Look for the Content-Type response header and determine type
-			//and encoding from it (if possible - such as 'Content-Type: text/plain; charset=UTF-8')
-            //Check for a chunked response and de-chunk it if necessary
-			foreach ($httpHeaders as $header)
-			{
-                if (strncasecmp($header, 'Transfer-Encoding: chunked', 26) == 0) {
-                    $rawResponse = $this->http_chunked_decode($rawResponse);
-                }
-
-				if (strncasecmp($header, 'Content-Type:', 13) == 0)
-				{
-					//split content type value into two parts if possible
-					$parts = split(';', substr($header, 13), 2);
-
-					$type = trim($parts[0]);
-
-					if ($parts[1])
-					{
-						//split the encoding section again to get the value
-						$parts = split('=', $parts[1], 2);
-
-						if ($parts[1])
-						{
-							$encoding = trim($parts[1]);
-						}
-					}
-
-					break;
-				}
-			}
-		}
-
-		$this->_rawResponse = $rawResponse;
-		$this->_type = $type;
-		$this->_encoding = $encoding;
-		$this->_httpStatus = $status;
-		$this->_httpStatusMessage = $statusMessage;
+		$this->_response = $response;
 		$this->_createDocuments = (bool) $createDocuments;
 		$this->_collapseSingleValueArrays = (bool) $collapseSingleValueArrays;
 	}
-
-    /** 
-     * dechunk an http 'transfer-encoding: chunked' message 
-     * 
-     * @param string $chunk the encoded message 
-     * @return string the decoded message.  If $chunk wasn't encoded properly it will be returned unmodified. 
-     */ 
-    protected function http_chunked_decode($chunk) {
-        $pos = 0; 
-        $len = strlen($chunk);
-        $dechunk = null;
-        
-        while(($pos < $len)  
-            && ($chunkLenHex = substr($chunk,$pos, ($newlineAt = strpos($chunk,"\n",$pos+1))-$pos)))
-        {   
-            if (! $this->is_hex($chunkLenHex)) { 
-                trigger_error('Value is not properly chunk encoded', E_USER_WARNING);
-                return $chunk;
-            }
-            
-            $pos = $newlineAt + 1; 
-            $chunkLen = hexdec(rtrim($chunkLenHex,"\r\n"));
-            $dechunk .= substr($chunk, $pos, $chunkLen);  
-            $pos = strpos($chunk, "\n", $pos + $chunkLen) + 1;
-        } 
-        return $dechunk;
-    }
-    
-    /** 
-     * determine if a string can represent a number in hexadecimal 
-     * 
-     * @param string $hex 
-     * @return boolean true if the string is a hex, otherwise false 
-     */ 
-    protected function is_hex($hex) {
-        // regex is for weenies 
-        $hex = strtolower(trim(ltrim($hex,"0")));
-        if (empty($hex)) { $hex = 0; };
-        $dec = hexdec($hex); 
-        return ($hex == dechex($dec));
-    }
 
 	/**
 	 * Get the HTTP status code
@@ -211,7 +108,7 @@ class Apache_Solr_Response
 	 */
 	public function getHttpStatus()
 	{
-		return $this->_httpStatus;
+		return $this->_response->getStatusCode();
 	}
 
 	/**
@@ -221,7 +118,7 @@ class Apache_Solr_Response
 	 */
 	public function getHttpStatusMessage()
 	{
-		return $this->_httpStatusMessage;
+		return $this->_response->getStatusMessage();
 	}
 
 	/**
@@ -231,7 +128,7 @@ class Apache_Solr_Response
 	 */
 	public function getType()
 	{
-		return $this->_type;
+		return $this->_response->getMimeType();
 	}
 
 	/**
@@ -241,7 +138,7 @@ class Apache_Solr_Response
 	 */
 	public function getEncoding()
 	{
-		return $this->_encoding;
+		return $this->_response->getEncoding();
 	}
 
 	/**
@@ -251,14 +148,14 @@ class Apache_Solr_Response
 	 */
 	public function getRawResponse()
 	{
-		return $this->_rawResponse;
+		return $this->_response->getBody();
 	}
 
 	/**
 	 * Magic get to expose the parsed data and to lazily load it
 	 *
-	 * @param unknown_type $key
-	 * @return unknown
+	 * @param string $key
+	 * @return mixed
 	 */
 	public function __get($key)
 	{
@@ -277,12 +174,37 @@ class Apache_Solr_Response
 	}
 
 	/**
+	 * Magic function for isset function on parsed data
+	 *
+	 * @param string $key
+	 * @return boolean
+	 */
+	public function __isset($key)
+	{
+		if (!$this->_isParsed)
+		{
+			$this->_parseData();
+			$this->_isParsed = true;
+		}
+
+		return isset($this->_parsedData->$key);
+	}
+
+	/**
 	 * Parse the raw response into the parsed_data array for access
+	 *
+	 * @throws Apache_Solr_ParserException If the data could not be parsed
 	 */
 	protected function _parseData()
 	{
 		//An alternative would be to use Zend_Json::decode(...)
-		$data = json_decode($this->_rawResponse);
+		$data = json_decode($this->_response->getBody());
+
+		// check that we receive a valid JSON response - we should never receive a null
+		if ($data === null)
+		{
+			throw new Apache_Solr_ParserException('Solr response does not appear to be valid JSON, please examine the raw response with getRawResponse() method');
+		}
 
 		//if we're configured to collapse single valued arrays or to convert them to Apache_Solr_Document objects
 		//and we have response documents, then try to collapse the values and / or convert them now
