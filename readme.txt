@@ -12,7 +12,7 @@ A WordPress widget that browses content by standard WordPress attributes (catego
 
 == Description ==
 
-`Browse Content by My Solr Server` allows to navigate through WordPress content by standard WordPress attributes (categories, tags and authors) and custom fields.
+Browse Content by My Solr Server widget allows to navigate through WordPress content by standard WordPress attributes (categories, tags and authors) and custom fields.
 
 You can see a demo at http://www.eolya.fr/blog/ 
 
