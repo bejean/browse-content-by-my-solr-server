@@ -4,7 +4,7 @@ Plugin Name: Browse Content by My Solr Server
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link: 
 Description: Browse content by custom fields or other attributes
-Version: 1.1.0
+Version: 1.1.1
 Author: My Solr Server
 Author URI: http://www.mysolrserver.com
 */
@@ -311,7 +311,7 @@ function mssbc_clauses( $clauses, $wp_query ) {
 			if (!$first) $clauses['where'] .= ")";			
 		}
 	}
-	$sql = "SELECT " . $clauses['fields'] . " FROM wp_posts " . $clauses['join'] . " WHERE 1=1" . $clauses['where'] . " ORDER BY " . $clauses['orderby'];
+	//$sql = "SELECT " . $clauses['fields'] . " FROM wp_posts " . $clauses['join'] . " WHERE 1=1" . $clauses['where'] . " ORDER BY " . $clauses['orderby'];
 	return $clauses;
 }
 add_filter( 'posts_clauses', 'mssbc_clauses');
