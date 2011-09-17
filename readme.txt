@@ -6,7 +6,7 @@ Donate link:
 Tags: custom fields, browse content, search
 Requires at least: 3.0.0
 Tested up to: 3.2.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 
 A WordPress widget that browses content by standard WordPress attributes (categories, tags and authors) and custom fields.
 
@@ -40,11 +40,11 @@ Index your blog content into Solr (see Solr hosting provider here : http://www.m
 
 As explained just before, you can create a dedicated template file in your theme based for example on search.php. This template is in charge to implement the WordPress loop.
 
-<?php if ( have_posts() ) : ?>
+&lt;?php if ( have_posts() ) : ?&gt;
 ...
-<?php while ( have_posts() ) : the_post(); ?>
+&lt;?php while ( have_posts() ) : the_post(); ?&gt;
 ...
-<?php endwhile; ?>
+&lt;?php endwhile; ?&gt;
 
 = Customize the widget display =
 
@@ -72,11 +72,17 @@ Browse Content by My Solr Server plugin works with Solr for WordPress 0.4.1 and 
 
 == Changelog ==
 
-= 1.0.0 =
+= 1.1.1 =
 
-Initial version 
+Fixes issue when attribute values orcustom field values contain special characters like & 
 
 = 1.1.0 =
 
 Works with both a static page as front page or last posts as front page (`Reading settings` of WordPress)
+
+= 1.0.0 =
+
+Initial version 
+
+
 

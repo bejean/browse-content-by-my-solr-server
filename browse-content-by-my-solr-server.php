@@ -4,7 +4,7 @@ Plugin Name: Browse Content by My Solr Server
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link: 
 Description: Browse content by custom fields or other attributes
-Version: 1.1.0
+Version: 1.1.1
 Author: My Solr Server
 Author URI: http://www.mysolrserver.com
 */
@@ -89,7 +89,12 @@ class mssbc_BrowseWidget extends WP_Widget {
 		$filters_json = get_query_var( 'mssbc_browse_filter' );
         
 		if ($filters_json=='') {
-			$filters_json = '{\"filters\": [], \"exclude_post\":\"' . $exclude_post . '\", \"exclude_page\":\"' . $exclude_page . '\" }';
+			//$filters_json = '{\"filters\": [], \"exclude_post\":\"' . $exclude_post . '\", \"exclude_page\":\"' . $exclude_page . '\" }';
+			$filters_json = '{\"filters\": [] }';
+		}
+		else {
+			// To improve !!!
+			$filters_json = str_replace("\'", "'", $filters_json);
 		}
 		
         if ($filters_json!="") {
@@ -116,6 +121,10 @@ class mssbc_BrowseWidget extends WP_Widget {
         	include_once(dirname(__FILE__) . '/template/mssbc_default.php');
         }
 		
+        // To improve !!!
+        $filters_json = str_replace("&amp;", "&amp;amp;", $filters_json);
+        $filters_json = str_replace("'", "&apos;", $filters_json);
+        
 ?>
 		<form action="<?php echo get_bloginfo('wpurl') . "/"; ?>" method="get" id="mssbc_browse" name="mssbc_browse">
 		<input id="mssbc_browse_filter" name="mssbc_browse_filter" type="hidden" value='<?php echo $filters_json; ?>' />
@@ -227,6 +236,9 @@ function mssbc_clauses( $clauses, $wp_query ) {
 		$current_where_clause = $clauses['where'];
 		$current_fields_clause = $clauses['fields'];
 
+		// To improve !!!
+		$filters_json = str_replace("\'", "'", $filters_json);
+		
 		$aFilters = json_decode ( str_replace ( '\"' , '"' , $filters_json) , true);
 		
 //		$exclude_post=($aFilters['exclude_post']=='1');
@@ -248,7 +260,7 @@ function mssbc_clauses( $clauses, $wp_query ) {
 					}
 					$first=false;
 					$clauses['join'] .= "JOIN $wpdb->postmeta $meta ON ($wpdb->posts.ID = $meta.post_id)";
-					$clauses['where'] .= "($meta.meta_key = '" . preg_replace('/_str$/i', '', $filters[$i]['facetfield']) . "' AND $meta.meta_value = '" . $filters[$i]['facetval'] . "')";
+					$clauses['where'] .= "($meta.meta_key = '" . preg_replace('/_str$/i', '', $filters[$i]['facetfield']) . "' AND $meta.meta_value = '" . addslashes($filters[$i]['facetval']) . "')";
 				}
 				else {
 					if ($first) {
@@ -275,11 +287,11 @@ function mssbc_clauses( $clauses, $wp_query ) {
 					
 					if ($filters[$i]['facetfield']=='author') {
 						$clauses['join'] .= "JOIN $wpdb->users $meta ON ($wpdb->posts.post_author = $meta.ID)";
-						$clauses['where'] .= "($meta.user_login = '" . $filters[$i]['facetval'] . "')";		
+						$clauses['where'] .= "($meta.user_login = '" . addslashes($filters[$i]['facetval']) . "')";		
 					}
 					
 					if ($filters[$i]['facetfield']=='tags') {
-						$in_select = "SELECT $wpdb->term_taxonomy.term_taxonomy_id FROM $wpdb->term_taxonomy JOIN $wpdb->terms ON ($wpdb->term_taxonomy.term_id = $wpdb->terms.term_id) WHERE $wpdb->term_taxonomy.taxonomy = 'post_tag' AND $wpdb->terms.name = '" . $filters[$i]['facetval'] . "'";
+						$in_select = "SELECT $wpdb->term_taxonomy.term_taxonomy_id FROM $wpdb->term_taxonomy JOIN $wpdb->terms ON ($wpdb->term_taxonomy.term_id = $wpdb->terms.term_id) WHERE $wpdb->term_taxonomy.taxonomy = 'post_tag' AND $wpdb->terms.name = '" . addslashes($filters[$i]['facetval']) . "'";
 						$clauses['join'] .= " JOIN $wpdb->term_relationships $meta ON ($wpdb->posts.ID = $meta.object_id)";
 						$clauses['where'] .= "($meta.term_taxonomy_id IN (" . $in_select . "))";		
 					}
@@ -290,7 +302,7 @@ function mssbc_clauses( $clauses, $wp_query ) {
 						for ($j=0;$j<count($aValues);$j++) {
 							if (trim($aValues[$j])!='') $values = $aValues[$j];
 						}
-						$in_select = "SELECT $wpdb->term_taxonomy.term_taxonomy_id FROM $wpdb->term_taxonomy JOIN $wpdb->terms ON ($wpdb->term_taxonomy.term_id = $wpdb->terms.term_id) WHERE $wpdb->term_taxonomy.taxonomy = 'category' AND $wpdb->terms.name = '" . $values . "'";
+						$in_select = "SELECT $wpdb->term_taxonomy.term_taxonomy_id FROM $wpdb->term_taxonomy JOIN $wpdb->terms ON ($wpdb->term_taxonomy.term_id = $wpdb->terms.term_id) WHERE $wpdb->term_taxonomy.taxonomy = 'category' AND $wpdb->terms.name = '" . addslashes($values) . "'";
 						$clauses['join'] .= "JOIN $wpdb->term_relationships $meta ON ($wpdb->posts.ID = $meta.object_id)";
 						$clauses['where'] .= "($meta.term_taxonomy_id IN (" . $in_select . "))";		
 					}
@@ -299,7 +311,7 @@ function mssbc_clauses( $clauses, $wp_query ) {
 			if (!$first) $clauses['where'] .= ")";			
 		}
 	}
-	$sql = "SELECT " . $clauses['fields'] . " FROM wp_posts " . $clauses['join'] . " WHERE 1=1" . $clauses['where'] . " ORDER BY " . $clauses['orderby'];
+	//$sql = "SELECT " . $clauses['fields'] . " FROM wp_posts " . $clauses['join'] . " WHERE 1=1" . $clauses['where'] . " ORDER BY " . $clauses['orderby'];
 	return $clauses;
 }
 add_filter( 'posts_clauses', 'mssbc_clauses');
@@ -351,10 +363,11 @@ function mssbc_head() {
 
 	function mss_browse(action, facetfield, facetval) {
 		var f = jQuery("#mssbc_browse_filter").val();
-		//if (f=='') 
-		//	f = '{"filters": []}';
-		//else 
-			f=f.replace(/\\"/g, '"');
+		
+		// To improve !!!
+		f=f.replace(/\\"/g, '"').replace(/\\'/g, "'");
+		
+		//alert (facetval + ' | ' + f);
 		var state = JSON.parse(f);
 		if (action=='add') {
 			var filter = {facetfield: facetfield, facetval: facetval};
@@ -372,6 +385,7 @@ function mssbc_head() {
 		    }
 			jQuery("#mssbc_browse_filter").val(JSON.stringify(state2));		    
 		}
+		//alert(jQuery("#mssbc_browse_filter").val());
 		jQuery("#mssbc_browse").submit();
 	    return false;
 	}

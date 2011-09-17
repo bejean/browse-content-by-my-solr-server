@@ -39,14 +39,22 @@ if ($results) {
 				for ($i=0;$i<count($aValues);$i++) {
 					if (trim($aValues[$i])!='') $values = $aValues[$i];
 				}
+				
+				if (strpos($facetval, "\n")) continue;
+				
+				// To improve !!!
+				$facetval_forjs = str_replace ("'", "\" + String.fromCharCode(39) + \"", str_replace("&amp;", "&amp;amp;", $facetval));
+				
+				//$facetval_forjs = preg_replace('/\n/', '\\n', $facetval_forjs);
+				
 				echo '<li class="mssbc_browse_field_list_item">';
 				if ($this->isSelected($aFilters['filters'], $facetfield, $facetval)) {
-					echo "<input type='checkbox' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval . "\");' checked>";
-					echo "&nbsp;<a href='javascript:void(0)' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval . "\");'>" . $values . " (" . $facetcnt . ") </a>";
+					echo "<input type='checkbox' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval_forjs . "\");' checked>";
+					echo "&nbsp;<a href='javascript:void(0)' onClick='mss_browse(\"remove\", \"" . $facetfield . "\", \"" . $facetval_forjs . "\");'>" . $values . " (" . $facetcnt . ") </a>";
 				}
 				else {
-					echo "<input type='checkbox' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval . "\");'>";
-					echo "&nbsp;<a href='javascript:void(0)' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval . "\");'>" . $values . " (" . $facetcnt . ") </a>";
+					echo "<input type='checkbox' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval_forjs . "\");'>";
+					echo "&nbsp;<a href='javascript:void(0)' onClick='mss_browse(\"add\", \"" . $facetfield . "\", \"" . $facetval_forjs . "\");'>" . $values . " (" . $facetcnt . ") </a>";
 				}
 				echo '</li>';
 			}
