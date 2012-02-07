@@ -31,7 +31,7 @@ if ($results) {
 		echo '<div class="mssbc_browse">';
 		foreach ($results->facet_counts->facet_fields as $facetfield => $facet) {
 			if (!get_object_vars($facet) ) continue;
-			echo '<div class="mssbc_browse_field_title">' . ucwords(preg_replace('/_str$/i', '', $facetfield)) . "</div>";
+			echo '<div class="mssbc_browse_field_title">' . ucwords(str_replace('_', ' ', preg_replace('/_str$/i', '', $facetfield))) . "</div>";
 			echo '<lu class="mssbc_browse_field_list">';
 			foreach ($facet as $facetval => $facetcnt) {
 				$aValues = explode ('^^', $facetval);

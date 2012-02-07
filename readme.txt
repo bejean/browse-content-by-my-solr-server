@@ -1,12 +1,12 @@
 === Browse Content by My Solr Server ===
 Contributors: www.mysolrserver.com
 Author URI: http://www.mysolrserver.com
-Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
+Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-my-solr-server/
 Donate link: 
 Tags: custom fields, browse content, search
 Requires at least: 3.0.0
-Tested up to: 3.2.1
-Stable tag: 1.1.1
+Tested up to: 3.3.1
+Stable tag: 2.0.0
 
 A WordPress widget that browses content by standard WordPress attributes (categories, tags and authors) and custom fields.
 
@@ -20,7 +20,7 @@ You can see a demo at http://www.eolya.fr/blog/
 
 = Prerequisite = 
 
-Install and activate `Solr for WordPress plugin 0.4.1 and greater` (http://wordpress.org/extend/plugins/solr-for-wordpress/).
+Install and activate `Advanced Search by My Solr Server plugin 2.0.0 and greater` (http://wordpress.org/extend/plugins/advanced-search-by-my-solr-server/).
 Index your blog content into Solr (see Solr hosting provider here : http://www.mysolrserver.com/) 
 
 = Installation =
@@ -59,9 +59,13 @@ You can implement your own template by copying theses two files as `mssbc_custom
 
 Browse Content by My Solr Server plugin works with WordPress 3.0.0 and greater.
 
-= What version of Solr for WordPress plugin does Browse Content by My Solr Server plugin work with? =
+= What version of Solr does Advanced Search by My Solr Server plugin work with? =
 
-Browse Content by My Solr Server plugin works with Solr for WordPress 0.4.1 and greater.
+Advanced Search by My Solr Server plugin works with Solr 1.4.x and 3.x
+
+= How to manage Custom Post type, custom taxonomies and custom fields
+
+Advanced Search by My Solr Server plugin is tested with "Custom Post Type UI" plugin for Custom Post type and custom taxonomies management and with "Custom Field Template" plugin for custom fields management
 
 
 == Screenshots ==
@@ -72,17 +76,21 @@ Browse Content by My Solr Server plugin works with Solr for WordPress 0.4.1 and 
 
 == Changelog ==
 
+= 2.0.0 =
+
+* Add support for custom post types and custom taxonomies
+
 = 1.1.1 =
 
-Fixes issue when attribute values orcustom field values contain special characters like & 
+* Fixes issue when attribute values orcustom field values contain special characters like & 
 
 = 1.1.0 =
 
-Works with both a static page as front page or last posts as front page (`Reading settings` of WordPress)
+* Works with both a static page as front page or last posts as front page (`Reading settings` of WordPress)
 
 = 1.0.0 =
 
-Initial version 
+* Initial version 
 
 
 
