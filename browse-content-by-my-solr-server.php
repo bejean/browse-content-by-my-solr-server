@@ -4,7 +4,7 @@
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link:
 Description: Browse content by custom fields or other attributes
-Version: 1.1.1
+Version: 2.0.0
 Author: My Solr Server
 Author URI: http://www.mysolrserver.com
 */
