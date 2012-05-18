@@ -6,7 +6,7 @@ Donate link:
 Tags: custom fields, browse content, search
 Requires at least: 3.0.0
 Tested up to: 3.3.1
-Stable tag: 2.0.0
+Stable tag: 2.0.1
 
 A WordPress widget that browses content by standard WordPress attributes (categories, tags and authors) and custom fields.
 
@@ -75,6 +75,10 @@ Advanced Search by My Solr Server plugin is tested with "Custom Post Type UI" pl
 2. Configuration Page
 
 == Changelog ==
+
+= 2.0.1 =
+
+* SolrPhpClient library dependency update
 
 = 2.0.0 =
 

@@ -21,6 +21,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+
+
 function mssbc_get_solr($ping = FALSE) {
 	// get the connection options
 
@@ -48,8 +50,10 @@ function mssbc_get_solr($ping = FALSE) {
 	}
 
 	// create the solr service object
-	$solr = new Apache_Solr_Service($host, $port, $path);
-
+	require_once("SolrPhpClient/Apache/Solr/HttpTransport/Curl.php");
+	$httpTransport = new Apache_Solr_HttpTransport_Curl();
+	$solr = new Apache_Solr_Service($host, $port, $path, $httpTransport);
+	
 	// if we want to check if the server is alive, ping it
 	if ($ping) {
 		if ( ! $solr->ping() ) {

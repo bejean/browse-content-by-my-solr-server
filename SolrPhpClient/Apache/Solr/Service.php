@@ -38,6 +38,7 @@
 
 // See Issue #1 (http://code.google.com/p/solr-php-client/issues/detail?id=1)
 // Doesn't follow typical include path conventions, but is more convenient for users
+$f = dirname(__FILE__);
 require_once(dirname(__FILE__) . '/Exception.php');
 require_once(dirname(__FILE__) . '/HttpTransportException.php');
 require_once(dirname(__FILE__) . '/InvalidArgumentException.php');

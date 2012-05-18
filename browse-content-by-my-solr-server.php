@@ -4,7 +4,7 @@
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link:
 Description: Browse content by custom fields or other attributes
-Version: 2.0.0
+Version: 2.0.1
 Author: My Solr Server
 Author URI: http://www.mysolrserver.com
 */
@@ -459,10 +459,10 @@ function mssbc_head() {
 		printf(__("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" media=\"screen\" />\n"), bloginfo(template_url) . '/mssbc_custom.css');
 	} else if (file_exists(dirname(__FILE__) . '/template/mssbc_custom.css')) {
 		// use plugin customized css
-		printf(__("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" media=\"screen\" />\n"), plugins_url('/advanced-search-by-my-solr-server/template/mssbc_custom.css'));
+		printf(__("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" media=\"screen\" />\n"), plugins_url('/browse-search-by-my-solr-server/template/mssbc_custom.css'));
 	} else {
 		// no custom template files found, just continue on like normal
-		printf(__("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" media=\"screen\" />\n"), plugins_url('/advanced-search-by-my-solr-server/template/mssbc_default.css'));
+		printf(__("<link rel=\"stylesheet\" href=\"%s\" type=\"text/css\" media=\"screen\" />\n"), plugins_url('/browse-search-by-my-solr-server/template/mssbc_default.css'));
 	}
 
 	?>
