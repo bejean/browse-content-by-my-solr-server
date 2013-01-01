@@ -80,7 +80,7 @@ Browse Content by My Solr Server plugin was tested with:
 
 == Changelog ==
 
-= 2.0.3 =
+= 2.0.4 =
 
 * SolrPhpClient upgrade
 
