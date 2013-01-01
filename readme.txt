@@ -6,7 +6,7 @@ Donate link:
 Tags: custom fields, browse content, search
 Requires at least: 3.0.0
 Tested up to: 3.3.1
-Stable tag: 2.0.1
+Stable tag: 2.0.4
 
 A WordPress widget that browses content by standard WordPress attributes (categories, tags and authors) and custom fields.
 
@@ -35,6 +35,7 @@ Index your blog content into Solr (see Solr hosting provider here : http://www.m
 1. Provide a widget title
 2. Provide the standard WordPress attributes (categories, tags and authors) and custom fields to be used in the widget
 3. Select the template file from you theme to be used to show posts list. By default, the `search.php` template is used. You can chose to create a specific template. For exemple, with the default Wordpress themes, you can copy search.php to browse.php and remove the line that display the message "Search Results for:".
+A browse.php sample file is provided in the sample directory.
 
 = Customize the posts list =
 
@@ -65,7 +66,10 @@ Advanced Search by My Solr Server plugin works with Solr 1.4.x and 3.x
 
 = How to manage Custom Post type, custom taxonomies and custom fields
 
-Advanced Search by My Solr Server plugin is tested with "Custom Post Type UI" plugin for Custom Post type and custom taxonomies management and with "Custom Field Template" plugin for custom fields management
+Browse Content by My Solr Server plugin was tested with:
+* "Custom Post Type UI" plugin for Custom Post type and custom taxonomies management 
+* "Custom Field Template" plugin for custom fields management
+* WP-Types plugin for Custom Post type and custom taxonomies management and for custom fields management
 
 
 == Screenshots ==
@@ -75,6 +79,16 @@ Advanced Search by My Solr Server plugin is tested with "Custom Post Type UI" pl
 2. Configuration Page
 
 == Changelog ==
+
+= 2.0.3 =
+
+* SolrPhpClient upgrade
+
+= 2.0.2 =
+
+* Bug fixing
+* Provide a browse.php sample file to be use in the theme
+* Tests with WP-Types plugin 
 
 = 2.0.1 =
 

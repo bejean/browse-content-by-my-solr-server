@@ -77,7 +77,7 @@ function mssbc_query($aFilters, $facet_fields) {
 	if ( $solr ) {
 		$params = array();
 
-		$bUseDismax = true;
+		$bUseDismax = false;
 		if ($bUseDismax) {
 			$params['defType'] = 'dismax';
 			$params['qf'] = 'content';
