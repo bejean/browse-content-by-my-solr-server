@@ -4,7 +4,7 @@
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link:
 Description: Browse content by custom fields or other attributes
-Version: 2.0.1
+Version: 2.0.4
 Author: My Solr Server
 Author URI: http://www.mysolrserver.com
 */
@@ -138,7 +138,6 @@ class mssbc_BrowseWidget extends WP_Widget {
 			include_once(dirname(__FILE__) . '/template/mssbc_custom.php');
 		} else {
 			// no template files found, just continue on like normal
-			// this should get to the normal WordPress search results
 			include_once(dirname(__FILE__) . '/template/mssbc_default.php');
 		}
 
@@ -291,7 +290,7 @@ add_action( 'widgets_init', 'mssbc_browse_widget');
 
 function mssbc_clauses( $clauses, $wp_query ) {
 	global $wpdb;
-
+		
 	$keys = $wpdb->get_col( "
 				SELECT meta_key
 				FROM $wpdb->postmeta
@@ -323,10 +322,15 @@ function mssbc_clauses( $clauses, $wp_query ) {
 
 	$filters_json = get_query_var( 'mssbc_browse_filter' );
 
-	if ( isset( $filters_json ) && '' != $filters_json ) {
-		$current_join_clause = $clauses['join'];
-		$current_where_clause = $clauses['where'];
-		$current_fields_clause = $clauses['fields'];
+	if ( isset( $filters_json ) && '' != $filters_json && '{\"filters\":[]}' != $filters_json) {
+
+		$type_done = false;
+		
+		$clauses['where'] = "AND (wp_posts.post_status = 'publish' OR wp_posts.post_status = 'private')";
+		
+		//$current_join_clause = $clauses['join'];
+		//$current_where_clause = $clauses['where'];
+		//$current_fields_clause = $clauses['fields'];
 
 		// To improve !!!
 		$filters_json = str_replace("\'", "'", $filters_json);
@@ -399,6 +403,7 @@ function mssbc_clauses( $clauses, $wp_query ) {
 					else {
 						if ($facetfield=='type') {
 							$clauses['where'] .= "($wpdb->posts.post_type = '" . addslashes($facetval) . "')";
+							$type_done = true;
 						}
 							
 						if ($facetfield=='author') {
@@ -427,8 +432,28 @@ function mssbc_clauses( $clauses, $wp_query ) {
 			}
 			if (!$first) $clauses['where'] .= ")";
 		}
+		else {
+			//$clauses['where'] = "AND (wp_posts.post_status = 'publish' OR wp_posts.post_status = 'private')";
+			//$clauses['where'] = "";
+		}
+		if (!$type_done) {
+			$clauses['where'] .= " AND (";
+			$types = $plugin_s4w_settings['mss_post_types'];
+			$atypes = explode(",",$types);
+			for ($i=0;$i<count($atypes); $i++) {
+				if ($i>0) $clauses['where'] .= " OR ";
+				$clauses['where'] .= "($wpdb->posts.post_type = '" . addslashes($atypes[$i]) . "')";
+			}
+			$clauses['where'] .= ")";
+		}	
 	}
-	$sql = "SELECT " . $clauses['fields'] . " FROM wp_posts " . $clauses['join'] . " WHERE 1=1" . $clauses['where'] . " ORDER BY " . $clauses['orderby'];
+	else {
+		//$clauses['where'] = "AND (wp_posts.post_status = 'publish' OR wp_posts.post_status = 'private')";
+		//$clauses['where'] = "";
+	}
+
+	
+	$sql = "SELECT " . $clauses['fields'] . " FROM wp_posts " . $clauses['join'] . " WHERE 1=1 " . $clauses['where'] . " ORDER BY " . $clauses['orderby'];
 	return $clauses;
 }
 add_filter( 'posts_clauses', 'mssbc_clauses', 10, 2 );
