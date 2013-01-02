@@ -1,6 +1,6 @@
 <?php
 /*  
-    Copyright (c) 2011 My Solr Server
+    Copyright (c) 2011-2013 www.mysolrserver.com
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal

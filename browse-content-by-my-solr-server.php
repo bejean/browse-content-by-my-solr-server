@@ -1,6 +1,6 @@
 <?php
 /*
- Plugin Name: Browse Content by My Solr Server
+Plugin Name: Browse Content by My Solr Server
 Plugin URI: http://wordpress.org/extend/plugins/browse-content-by-mysolr-server/
 Donate link:
 Description: Browse content by custom fields or other attributes
@@ -9,7 +9,7 @@ Author: My Solr Server
 Author URI: http://www.mysolrserver.com
 */
 /*
- Copyright (c) 2011 My Solr Server
+Copyright (c) 2011-2013 www.mysolrserver.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
